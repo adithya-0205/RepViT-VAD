@@ -8,7 +8,10 @@ from tqdm import tqdm
 from video_dataset import VideoDataset
 from models.vad_model import RepViTTCN
 
+import os
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
 
 train_dataset = VideoDataset(train=True)
 val_dataset = VideoDataset(train=False)
@@ -27,13 +30,20 @@ val_loader = DataLoader(
     num_workers=0
 )
 
+
 model = RepViTTCN().to(device)
+# --- LOAD TEAMMATE'S WEIGHTS ---
+if os.path.exists("best_model.pth"):
+    model.load_state_dict(torch.load("best_model.pth", map_location=device))
+    print("Loaded teammate's Fighting weights successfully!")
+
+
 
 criterion = nn.BCELoss()
 
 optimizer = torch.optim.Adam(
     model.parameters(),
-    lr=1e-4
+    lr=1e-5   # Lowered from 1e-4 to 1e-5 to preserve Fighting knowledg
 )
 
 best_acc = 0

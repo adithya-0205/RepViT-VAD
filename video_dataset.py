@@ -9,10 +9,9 @@ from torchvision import transforms
 class VideoDataset(Dataset):
 
     def __init__(self,
-                 root="extracted_frames/train",
+                 root="dataset",
                  train=True,
-                 clip_len=16,
-                 split=0.8):
+                 clip_len=16):
 
         random.seed(42)
 
@@ -29,55 +28,54 @@ class VideoDataset(Dataset):
 
         videos = []
 
-        for label_name, label in [("normal",0),("fighting",1)]:
+        # --- FIX: Determine whether to pull from dataset/train or dataset/val ---
+        split_folder = "train" if train else "val"
 
-            folder = os.path.join(root,label_name)
+        for label_name, label in [("normal", 0), ("fighting", 1)]:
+
+            # --- FIX: Correct path to dataset/train/normal, dataset/train/fighting, etc. ---
+            folder = os.path.join(root, split_folder, label_name)
+
+            if not os.path.exists(folder):
+                continue
 
             names = os.listdir(folder)
-
             names.sort()
 
-            random.shuffle(names)
-
-            k = int(len(names)*split)
-
-            if train:
-                names = names[:k]
-            else:
-                names = names[k:]
-
             for n in names:
-                videos.append((os.path.join(folder,n),label))
+                video_path = os.path.join(folder, n)
+                if os.path.isdir(video_path):
+                    videos.append((video_path, label))
 
         self.samples = videos
 
     def __len__(self):
         return len(self.samples)
 
-    def __getitem__(self,index):
+    def __getitem__(self, index):
 
-        video_folder,label = self.samples[index]
+        video_folder, label = self.samples[index]
 
         frames = sorted(os.listdir(video_folder))
 
         if len(frames) >= self.clip_len:
 
-            start = random.randint(0,len(frames)-self.clip_len)
+            start = random.randint(0, len(frames) - self.clip_len)
 
-            frames = frames[start:start+self.clip_len]
+            frames = frames[start:start + self.clip_len]
 
         else:
 
-            frames += [frames[-1]]*(self.clip_len-len(frames))
+            frames += [frames[-1]] * (self.clip_len - len(frames))
 
-        imgs=[]
+        imgs = []
 
         for f in frames:
 
-            img=Image.open(os.path.join(video_folder,f)).convert("RGB")
+            img = Image.open(os.path.join(video_folder, f)).convert("RGB")
 
             imgs.append(self.transform(img))
 
-        imgs=torch.stack(imgs)
+        imgs = torch.stack(imgs)
 
-        return imgs,label
+        return imgs, label
