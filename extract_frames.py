@@ -8,8 +8,8 @@ FRAME_SKIP = 5          # Save every 5th frame
 IMG_SIZE = (224, 224)   # RepViT input size
 
 # Dataset paths
-NORMAL_DIR = "data/Normal_Videos_for_Event_Recognition"
-FIGHT_DIR = "data/Anomaly-Videos-Part-2/Fighting"
+NORMAL_DIR = "data/normal"
+ARSON_DIR = "data/arson"
 
 OUTPUT_DIR = "extracted_frames"
 
@@ -54,10 +54,16 @@ def extract(video_path, save_folder):
 # -----------------------------
 def process_folder(video_folder, output_folder):
 
+    if not os.path.exists(video_folder):
+        print(f"Folder not found: {video_folder}")
+        return
+
     videos = sorted([
         f for f in os.listdir(video_folder)
-        if f.endswith(".mp4")
+        if f.lower().endswith((".mp4", ".avi", ".mov", ".mkv"))
     ])
+
+    print(f"Found {len(videos)} videos in {video_folder}")
 
     for video in videos:
 
@@ -69,10 +75,10 @@ def process_folder(video_folder, output_folder):
         )
 
 
-print("Processing Fighting videos...")
+print("Processing Arson videos...")
 process_folder(
-    FIGHT_DIR,
-    "extracted_frames/train/fighting"
+    ARSON_DIR,
+    os.path.join(OUTPUT_DIR, "train", "arson")
 )
 
 print()
@@ -80,7 +86,7 @@ print()
 print("Processing Normal videos...")
 process_folder(
     NORMAL_DIR,
-    "extracted_frames/train/normal"
+    os.path.join(OUTPUT_DIR, "train", "normal")
 )
 
-print("\nDone!")
+print("\nFrame extraction completed!")

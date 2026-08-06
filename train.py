@@ -33,9 +33,18 @@ val_loader = DataLoader(
 
 model = RepViTTCN().to(device)
 # --- LOAD TEAMMATE'S WEIGHTS ---
-if os.path.exists("best_model.pth"):
-    model.load_state_dict(torch.load("best_model.pth", map_location=device))
-    print("Loaded teammate's Fighting weights successfully!")
+if os.path.exists("best_model_arson_stage1.pth"):
+    model.load_state_dict(
+        torch.load("best_model_arson_stage1.pth", map_location=device)
+    )
+    print("Loaded Stage 1 model successfully!")
+
+# Unfreeze the RepViT backbone
+for param in model.backbone.parameters():
+    param.requires_grad = True
+
+print("RepViT backbone unfrozen. Fine-tuning entire model.")
+
 
 
 
@@ -43,12 +52,12 @@ criterion = nn.BCELoss()
 
 optimizer = torch.optim.Adam(
     model.parameters(),
-    lr=1e-5   # Lowered from 1e-4 to 1e-5 to preserve Fighting knowledg
+    lr=1e-5
 )
 
 best_acc = 0
 
-EPOCHS = 10
+EPOCHS = 5
 
 for epoch in range(EPOCHS):
 
@@ -114,7 +123,7 @@ for epoch in range(EPOCHS):
 
         best_acc = acc
 
-        torch.save(model.state_dict(), "best_model.pth")
+        torch.save(model.state_dict(), "best_model_final.pth")
 
         print("Best model saved!")
 
