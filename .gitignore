@@ -6,10 +6,9 @@ pretrain
 venv/
 env/
 .venv/
-data/
-dataset/
 extracted_frames/
 *.pth
+!best_model.pth
 *.onnx
 *.onnx.data
 *.zip

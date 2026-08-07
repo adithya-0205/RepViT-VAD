@@ -1,15 +1,14 @@
 import torch
 import torch.nn as nn
 
-from model.repvit import repvit_m0_9
-
+from model.repvit import repvit_m1_0
 
 class RepViTBackbone(nn.Module):
 
     def __init__(self):
         super().__init__()
 
-        self.model = repvit_m0_9()
+        self.model = repvit_m1_0()
 
     def forward(self, x):
 

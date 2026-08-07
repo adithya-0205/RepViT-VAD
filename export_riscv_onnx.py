@@ -10,11 +10,11 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 from models.vad_model import RepViTTCN
 
-def export_to_riscv_onnx(output_onnx_path="repvit_m1_0_tcn_riscv.onnx", static_shape=False):
+def export_to_riscv_onnx(output_onnx_path="repvit_m1_0_tcn_riscv.onnx", static_shape=False, num_classes=3):
     print("--- Exporting RepViT-M1.0 + TCN Anomaly Model to ONNX for RISC-V Accelerator ---")
     
     device = torch.device("cpu")
-    model = RepViTTCN(num_classes=1).to(device)
+    model = RepViTTCN(num_classes=num_classes).to(device)
     model.eval()
 
     # Load weights if available and matching shape
@@ -39,7 +39,7 @@ def export_to_riscv_onnx(output_onnx_path="repvit_m1_0_tcn_riscv.onnx", static_s
     # Dynamic axes configuration (if static_shape=False)
     dynamic_axes = None if static_shape else {
         "video_input": {0: "batch_size", 1: "num_frames"},
-        "anomaly_score": {0: "batch_size"}
+        "class_logits": {0: "batch_size"}
     }
 
     print(f"Exporting to '{output_onnx_path}' (Static Shapes: {static_shape})...")
@@ -54,7 +54,7 @@ def export_to_riscv_onnx(output_onnx_path="repvit_m1_0_tcn_riscv.onnx", static_s
             opset_version=14,
             do_constant_folding=True,
             input_names=["video_input"],
-            output_names=["anomaly_score"],
+            output_names=["class_logits"],
             dynamic_axes=dynamic_axes,
             dynamo=False
         )
@@ -68,7 +68,7 @@ def export_to_riscv_onnx(output_onnx_path="repvit_m1_0_tcn_riscv.onnx", static_s
             opset_version=14,
             do_constant_folding=True,
             input_names=["video_input"],
-            output_names=["anomaly_score"],
+            output_names=["class_logits"],
             dynamic_axes=dynamic_axes
         )
 

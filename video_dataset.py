@@ -9,10 +9,9 @@ from torchvision import transforms
 class VideoDataset(Dataset):
 
     def __init__(self,
-                 root="extracted_frames/train",
+                 root="dataset",
                  train=True,
-                 clip_len=16,
-                 split=0.8):
+                 clip_len=16):
 
         random.seed(42)
 
@@ -29,25 +28,51 @@ class VideoDataset(Dataset):
 
         videos = []
 
-        for label_name, label in [("normal",0),("fighting",1)]:
+        split_folder = "train" if train else "val"
+        split_dir = os.path.join(root, split_folder)
 
-            folder = os.path.join(root,label_name)
+        import json
+
+        classes_file = "classes.json"
+        if os.path.exists(classes_file):
+            with open(classes_file, "r") as f:
+                self.classes = json.load(f)
+        else:
+            self.classes = []
+
+        if os.path.exists(split_dir):
+            disk_classes = sorted([
+                d for d in os.listdir(split_dir)
+                if os.path.isdir(os.path.join(split_dir, d))
+            ])
+            for c in disk_classes:
+                if c not in self.classes:
+                    self.classes.append(c)
+
+            # Persist updated global classes list
+            with open(classes_file, "w") as f:
+                json.dump(self.classes, f, indent=2)
+
+        if not self.classes:
+            self.classes = ["normal", "fighting"]
+
+        self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
+
+        for label_name in self.classes:
+            label = self.class_to_idx[label_name]
+            folder = os.path.join(split_dir, label_name)
+
+            if not os.path.exists(folder):
+                continue
 
             names = os.listdir(folder)
-
             names.sort()
-
             random.shuffle(names)
 
-            k = int(len(names)*split)
-
-            if train:
-                names = names[:k]
-            else:
-                names = names[k:]
-
             for n in names:
-                videos.append((os.path.join(folder,n),label))
+                video_path = os.path.join(folder, n)
+                if os.path.isdir(video_path):
+                    videos.append((video_path, label))
 
         self.samples = videos
 

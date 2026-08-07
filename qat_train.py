@@ -12,8 +12,21 @@ def run_qat_training(epochs=1, batch_size=2, lr=1e-4, backend="fbgemm"):
 
     print(f"--- Initializing RepViT-M1.0 + TCN QAT Training (Backend: {backend}) ---")
     
+    # Datasets & Dataloaders
+    try:
+        train_dataset = VideoDataset(train=True)
+        val_dataset = VideoDataset(train=False)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+        num_classes = len(train_dataset.classes) if hasattr(train_dataset, "classes") and len(train_dataset.classes) > 0 else 3
+        has_real_data = True
+    except Exception as e:
+        print(f"Warning: Could not load real video dataset ({e}). Using synthetic forward pass for QAT check.")
+        num_classes = 3
+        has_real_data = False
+
     # Instantiate RepViT-M1.0 + TCN Anomaly Model
-    model = RepViTTCN(num_classes=1).to(device)
+    model = RepViTTCN(num_classes=num_classes).to(device)
 
     # Configure Quantization-Aware Training (QAT) for INT8
     model.qconfig = get_default_qat_qconfig(backend)
@@ -23,18 +36,7 @@ def run_qat_training(epochs=1, batch_size=2, lr=1e-4, backend="fbgemm"):
     prepared_model = prepare_qat(model, inplace=False)
     print("QAT FakeQuantize modules inserted successfully.")
 
-    # Datasets & Dataloaders
-    try:
-        train_dataset = VideoDataset(train=True)
-        val_dataset = VideoDataset(train=False)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
-        has_real_data = True
-    except Exception as e:
-        print(f"Warning: Could not load real video dataset ({e}). Using synthetic forward pass for QAT check.")
-        has_real_data = False
-
-    criterion = nn.BCELoss()
+    criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(prepared_model.parameters(), lr=lr)
 
     if has_real_data:
@@ -44,7 +46,7 @@ def run_qat_training(epochs=1, batch_size=2, lr=1e-4, backend="fbgemm"):
 
             for images, labels in train_loader:
                 images = images.to(device)
-                labels = labels.float().unsqueeze(1).to(device)
+                labels = labels.long().to(device)
 
                 optimizer.zero_grad()
                 outputs = prepared_model(images)
@@ -59,7 +61,7 @@ def run_qat_training(epochs=1, batch_size=2, lr=1e-4, backend="fbgemm"):
     else:
         # Synthetic batch forward/backward to calibrate fake quantization
         dummy_input = torch.randn(2, 8, 3, 224, 224, device=device)
-        dummy_labels = torch.ones(2, 1, device=device)
+        dummy_labels = torch.zeros(2, dtype=torch.long, device=device)
         optimizer.zero_grad()
         out = prepared_model(dummy_input)
         loss = criterion(out, dummy_labels)

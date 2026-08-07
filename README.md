@@ -1,6 +1,143 @@
-# [RepViT-SAM: Towards Real-Time Segmenting Anything](https://arxiv.org/abs/2312.05760)
+# RepViT-VAD: Video Anomaly Detection with RepViT-M1.0 + TCN
 
-# [RepViT: Revisiting  Mobile CNN From ViT Perspective](https://arxiv.org/abs/2307.09283)
+A real-time **Video Anomaly Detection** system built using **RepViT-M1.0** backbone + **Temporal Convolutional Network (TCN)** + **Sigmoid Anomaly Head**, with **INT8 Quantization-Aware Training (QAT)** and **RISC-V ONNX deployment** support.
+
+---
+
+## 🏗 Model Architecture
+
+| Component | Details |
+|:---|:---|
+| **Backbone** | RepViT-M1.0 (448-dim features, ~1ms latency) |
+| **Temporal Module** | Temporal Convolutional Network (TCN) |
+| **Anomaly Head** | Global Average Pooling + MLP + Sigmoid |
+| **Output** | Anomaly Score ∈ [0.0, 1.0] |
+| **Quantization** | QAT → INT8 (fbgemm backend) |
+| **Deployment** | ONNX → RISC-V AI Accelerator |
+
+---
+
+## 📦 Dataset Download
+
+> ⚠️ The dataset is **NOT included** in this repository due to large file sizes.
+> Please download it from Google Drive below and place it in the correct folder.
+
+### 🔗 Download Dataset
+👉 **[Click here to download dataset from Google Drive](YOUR_GOOGLE_DRIVE_LINK_HERE)**
+
+### 📂 Place Dataset in this Structure
+After downloading, unzip and place as follows:
+
+```
+RepViT-VAD/
+└── extracted_frames/
+    └── train/
+        ├── fighting/        ← Anomaly video frame folders
+        │   ├── Fighting001/
+        │   │   ├── frame_001.jpg
+        │   │   └── ...
+        │   └── Fighting002/
+        └── normal/          ← Normal video frame folders
+            ├── Normal001/
+            └── Normal002/
+```
+
+---
+
+## 🚀 Setup & Installation
+
+```bash
+# 1. Clone this repository
+git clone https://github.com/adithya-0205/RepViT-VAD.git
+cd RepViT-VAD
+
+# 2. Create virtual environment
+python -m venv venv
+venv\Scripts\activate      # Windows
+# source venv/bin/activate  # Linux/Mac
+
+# 3. Install dependencies
+pip install -r requirements.txt
+```
+
+---
+
+## 🏋️ Training
+
+```bash
+python train.py
+```
+
+- Training runs for **10 epochs** by default
+- Best model is saved to `best_model.pth` automatically
+- Loss: `BCELoss` | Optimizer: `Adam (lr=1e-4)`
+
+---
+
+## 📊 Results (Our Training)
+
+| Epoch | Train Loss | Val Accuracy |
+|:---:|:---:|:---:|
+| 7 | 0.5660 | 65.00% |
+| 8 | 0.4936 | 70.00% |
+| 9 | 0.5760 | 80.00% |
+| **Best** | - | **85.00%** |
+
+---
+
+## ⚡ Quantization (QAT → INT8)
+
+```bash
+python qat_train.py
+```
+Saves quantized model to `repvit_m1_0_tcn_int8.pth`
+
+---
+
+## 🔧 ONNX Export for RISC-V Deployment
+
+```bash
+# Dynamic shapes (default)
+python export_riscv_onnx.py
+
+# Static shapes (for NPU hardware compilers)
+python export_riscv_onnx.py --static
+```
+Exports to `repvit_m1_0_tcn_riscv.onnx`
+
+---
+
+## 📁 Project Structure
+
+```
+RepViT-VAD/
+├── models/
+│   ├── repvit_backbone.py   ← RepViT-M1.0 backbone
+│   ├── tcn.py               ← Temporal Convolutional Network
+│   └── vad_model.py         ← Full VAD model (Backbone + TCN + Head)
+├── model/
+│   └── repvit.py            ← RepViT model definitions
+├── train.py                 ← Training script
+├── qat_train.py             ← QAT INT8 quantization script
+├── export_riscv_onnx.py     ← ONNX export for RISC-V
+├── video_dataset.py         ← Dataset loader
+├── extract_frames.py        ← Extract frames from raw videos
+└── requirements.txt
+```
+
+---
+
+## 📜 Citation
+
+```bibtex
+@inproceedings{wang2024repvit,
+  title={Repvit: Revisiting mobile cnn from vit perspective},
+  author={Wang, Ao and Chen, Hui and Lin, Zijia and Han, Jungong and Ding, Guiguang},
+  booktitle={CVPR},
+  year={2024}
+}
+```
+
 
 
 Official PyTorch implementation of **RepViT-SAM** and **RepViT**. CVPR 2024.

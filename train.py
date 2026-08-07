@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 from video_dataset import VideoDataset
 from models.vad_model import RepViTTCN
+import os
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -27,13 +28,18 @@ val_loader = DataLoader(
     num_workers=0
 )
 
-model = RepViTTCN().to(device)
+num_classes = len(train_dataset.classes) if hasattr(train_dataset, "classes") and len(train_dataset.classes) > 0 else 3
+model = RepViTTCN(num_classes=num_classes).to(device)
 
-criterion = nn.BCELoss()
+# --- LOAD TEAMMATE'S WEIGHTS CONTINUALLY ---
+if os.path.exists("best_model.pth"):
+    model.load_continual_checkpoint("best_model.pth", device=device)
+
+criterion = nn.CrossEntropyLoss()
 
 optimizer = torch.optim.Adam(
     model.parameters(),
-    lr=1e-4
+    lr=1e-5  # Lowered LR to preserve previously learned anomaly features
 )
 
 best_acc = 0
@@ -53,12 +59,11 @@ for epoch in range(EPOCHS):
     for images, labels in tqdm(train_loader):
 
         images = images.to(device)
-        labels = labels.to(device)
+        labels = labels.long().to(device)
 
         optimizer.zero_grad()
 
         outputs = model(images)
-        labels = labels.float().view_as(outputs)
 
         loss = criterion(outputs, labels)
 
@@ -84,7 +89,7 @@ for epoch in range(EPOCHS):
             images = images.to(device)
             outputs = model(images)
 
-            pred = (outputs > 0.5).long().squeeze(1)
+            pred = outputs.argmax(dim=1)
 
             preds.extend(pred.cpu().numpy())
 
@@ -104,9 +109,16 @@ for epoch in range(EPOCHS):
 
         best_acc = acc
 
-        torch.save(model.state_dict(), "best_model.pth")
+        checkpoint = {
+            "state_dict": model.state_dict(),
+            "classes": train_dataset.classes,
+            "num_classes": len(train_dataset.classes),
+            "epoch": epoch + 1,
+            "best_acc": best_acc
+        }
+        torch.save(checkpoint, "best_model.pth")
 
-        print("Best model saved!")
+        print("Best continual learning model saved successfully!")
 
 print()
 
