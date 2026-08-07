@@ -5,20 +5,27 @@ import shutil
 random.seed(42)
 
 SRC = "extracted_frames/train"
-
 DST = "dataset"
 
-classes = ["fighting", "normal"]
+classes = ["normal", "arson"]
 
 for cls in classes:
 
-    videos = os.listdir(os.path.join(SRC, cls))
+    src_folder = os.path.join(SRC, cls)
+
+    if not os.path.exists(src_folder):
+        print(f"Folder not found: {src_folder}")
+        continue
+
+    videos = sorted(os.listdir(src_folder))
     random.shuffle(videos)
 
     split = int(0.8 * len(videos))
 
     train = videos[:split]
     val = videos[split:]
+
+    print(f"{cls}: {len(train)} train, {len(val)} val")
 
     for subset, vids in [("train", train), ("val", val)]:
 
@@ -27,9 +34,12 @@ for cls in classes:
 
         for v in vids:
 
-            src = os.path.join(SRC, cls, v)
+            src = os.path.join(src_folder, v)
             dst = os.path.join(save, v)
+
+            if os.path.exists(dst):
+                shutil.rmtree(dst)
 
             shutil.copytree(src, dst)
 
-print("Dataset split completed.")
+print("\nDataset split completed!")
