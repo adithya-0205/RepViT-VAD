@@ -1,17 +1,31 @@
-wandb
-coreml
-pretrain
-**/__pycache__
+wandb/
+
+coreml/
+
+pretrain/
+
+**/__pycache__/
 *.pyc
+
 venv/
 env/
 .venv/
+
 extracted_frames/
+
+# Model checkpoints
 *.pth
 !best_model.pth
+
 *.onnx
 *.onnx.data
+
 *.zip
-checkpoints
-trt
+
+checkpoints/
+trt/
+
 .DS_Store
+
+# Large continual-learning replay data
+replay_buffer/

@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Project Status Report – RepViT-VAD</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@400;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f4f6f9;
+      color: #1a1a2e;
+      padding: 40px 20px;
+    }
+
+    .page {
+      max-width: 850px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    /* HEADER */
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      color: white;
+      padding: 50px 50px 40px;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      top: -60px; right: -60px;
+      width: 220px; height: 220px;
+      background: rgba(229,57,53,0.15);
+      border-radius: 50%;
+    }
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: -40px; left: -40px;
+      width: 160px; height: 160px;
+      background: rgba(33,150,243,0.1);
+      border-radius: 50%;
+    }
+    .header .badge {
+      display: inline-block;
+      background: rgba(229,57,53,0.85);
+      color: white;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      margin-bottom: 18px;
+    }
+    .header h1 {
+      font-family: 'Merriweather', serif;
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+    .header .subtitle {
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 28px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 10px;
+    }
+    .meta-item label {
+      display: block;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 4px;
+    }
+    .meta-item span {
+      font-size: 13px;
+      font-weight: 500;
+      color: white;
+    }
+
+    /* BODY CONTENT */
+    .content {
+      padding: 44px 50px;
+    }
+
+    /* SECTION */
+    .section {
+      margin-bottom: 38px;
+    }
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #0f3460;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e8ecf2;
+    }
+    .section-title .icon {
+      width: 26px; height: 26px;
+      background: #0f3460;
+      color: white;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+
+    p {
+      font-size: 14px;
+      line-height: 1.85;
+      color: #2d3748;
+      margin-bottom: 12px;
+    }
+
+    /* ARCH TABLE */
+    .arch-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin: 12px 0;
+    }
+    .arch-table th {
+      background: #0f3460;
+      color: white;
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .arch-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #edf2f7;
+      color: #2d3748;
+    }
+    .arch-table tr:nth-child(even) td {
+      background: #f7fafc;
+    }
+
+    /* RESULTS */
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 12px 0 20px;
+    }
+    .result-card {
+      background: linear-gradient(135deg, #0f3460, #16213e);
+      color: white;
+      border-radius: 10px;
+      padding: 18px 14px;
+      text-align: center;
+    }
+    .result-card .value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #63b3ed;
+      margin-bottom: 4px;
+    }
+    .result-card .label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.6);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* TRAINING TABLE */
+    .training-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin: 12px 0;
+    }
+    .training-table th {
+      background: #2d3748;
+      color: white;
+      padding: 9px 14px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 11px;
+    }
+    .training-table td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #edf2f7;
+      text-align: center;
+      color: #2d3748;
+    }
+    .training-table tr.best td {
+      background: #ebf8ff;
+      font-weight: 700;
+      color: #0f3460;
+    }
+    .training-table tr:nth-child(even) td {
+      background: #f7fafc;
+    }
+    .training-table tr.best td {
+      background: #ebf8ff !important;
+    }
+
+    /* NEXT WEEK PLAN */
+    .plan-item {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 14px;
+      padding: 14px 16px;
+      background: #f7fafc;
+      border-left: 4px solid #0f3460;
+      border-radius: 0 8px 8px 0;
+    }
+    .plan-item .week-num {
+      min-width: 36px;
+      height: 36px;
+      background: #0f3460;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .plan-item .plan-text h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 4px;
+    }
+    .plan-item .plan-text p {
+      font-size: 12px;
+      color: #718096;
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    /* GIT SECTION */
+    .git-box {
+      background: #1a1a2e;
+      color: #63b3ed;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      padding: 14px 18px;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+
+    /* TEAM TABLE */
+    .team-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin: 12px 0;
+    }
+    .team-table th {
+      background: #e53e3e;
+      color: white;
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .team-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #edf2f7;
+      color: #2d3748;
+    }
+    .team-table tr:nth-child(even) td {
+      background: #fff5f5;
+    }
+    .status-done {
+      background: #c6f6d5;
+      color: #276749;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .status-pending {
+      background: #fefcbf;
+      color: #975a16;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* FOOTER */
+    .footer {
+      background: #f7fafc;
+      border-top: 1px solid #e2e8f0;
+      padding: 20px 50px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #a0aec0;
+    }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .page { box-shadow: none; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="badge">Project Status Report</div>
+    <h1>Real-Time Video Anomaly Detection<br/>Using RepViT-M1.0 + TCN Architecture</h1>
+    <div class="subtitle">Embedded AI &amp; Computer Vision Project — Weekly Progress Submission</div>
+    <div class="meta-grid">
+      <div class="meta-item">
+        <label>Student Name</label>
+        <span>Narayanan</span>
+      </div>
+      <div class="meta-item">
+        <label>GitHub Repository</label>
+        <span>adithya-0205/RepViT-VAD</span>
+      </div>
+      <div class="meta-item">
+        <label>Date of Submission</label>
+        <span>August 4, 2026</span>
+      </div>
+      <div class="meta-item">
+        <label>Assigned Anomaly</label>
+        <span>Fighting Detection</span>
+      </div>
+      <div class="meta-item">
+        <label>Team Size</label>
+        <span>4 Members</span>
+      </div>
+      <div class="meta-item">
+        <label>Best Accuracy</label>
+        <span>85.00%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- OVERVIEW -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon">📌</div>
+        Project Overview
+      </div>
+      <p>
+        This project focuses on building a <strong>real-time Video Anomaly Detection (VAD) system</strong> capable of identifying abnormal events from video footage. My individual contribution within the team is to handle the <strong>Fighting anomaly category</strong> — detecting violent physical altercations in surveillance-like video clips.
+      </p>
+      <p>
+        The overall system is designed around the <strong>RepViT-M1.0</strong> lightweight backbone combined with a <strong>Temporal Convolutional Network (TCN)</strong> for temporal modeling, and an anomaly scoring head that produces a single binary probability score. The trained model is further prepared for <strong>on-device INT8 deployment via ONNX export</strong> targeting a custom RISC-V AI Accelerator.
+      </p>
+    </div>
+
+    <!-- ARCHITECTURE -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon">🏗</div>
+        Model Architecture
+      </div>
+      <p>The system pipeline processes an input video clip as a sequence of frames and outputs an anomaly score between 0 and 1.</p>
+      <table class="arch-table">
+        <tr>
+          <th>Component</th>
+          <th>Details</th>
+          <th>Output Dimension</th>
+        </tr>
+        <tr>
+          <td><strong>Input</strong></td>
+          <td>Video clip — (Batch, 16 Frames, 3, 224×224)</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><strong>Backbone</strong></td>
+          <td>RepViT-M1.0 (upgraded from M0.9)</td>
+          <td>448-dim per frame</td>
+        </tr>
+        <tr>
+          <td><strong>Temporal Module</strong></td>
+          <td>TCN with 3 dilated TemporalBlocks (dilation: 1,2,4)</td>
+          <td>128-dim vector</td>
+        </tr>
+        <tr>
+          <td><strong>Anomaly Head</strong></td>
+          <td>GAP → Linear(128→64) → ReLU → Dropout(0.3) → Linear(64→1) → Sigmoid</td>
+          <td>Score ∈ [0.0, 1.0]</td>
+        </tr>
+        <tr>
+          <td><strong>Quantization</strong></td>
+          <td>QAT via torch.ao.quantization (fbgemm backend) → INT8</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td><strong>Deployment</strong></td>
+          <td>ONNX Export (opset 14) → RISC-V NPU Accelerator</td>
+          <td>repvit_m1_0_tcn_riscv.onnx</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon">📊</div>
+        Training Results
+      </div>
+
+      <div class="results-grid">
+        <div class="result-card">
+          <div class="value">85%</div>
+          <div class="label">Best Val Accuracy</div>
+        </div>
+        <div class="result-card">
+          <div class="value">10</div>
+          <div class="label">Epochs Trained</div>
+        </div>
+        <div class="result-card">
+          <div class="value">1e-4</div>
+          <div class="label">Learning Rate</div>
+        </div>
+        <div class="result-card">
+          <div class="value">INT8</div>
+          <div class="label">Final Precision</div>
+        </div>
+      </div>
+
+      <table class="training-table">
+        <tr>
+          <th>Epoch</th>
+          <th>Train Loss</th>
+          <th>Validation Accuracy</th>
+          <th>Remark</th>
+        </tr>
+        <tr>
+          <td>Epoch 7</td>
+          <td>0.5660</td>
+          <td>65.00%</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>Epoch 8</td>
+          <td>0.4936</td>
+          <td>70.00%</td>
+          <td>—</td>
+        </tr>
+        <tr>
+          <td>Epoch 9</td>
+          <td>0.5760</td>
+          <td>80.00%</td>
+          <td>—</td>
+        </tr>
+        <tr class="best">
+          <td>Best Model</td>
+          <td>—</td>
+          <td>85.00%</td>
+          <td>✅ Saved as best_model.pth</td>
+        </tr>
+      </table>
+      <p style="font-size:12px; color:#718096; margin-top:8px;">
+        Loss Function: BCELoss &nbsp;|&nbsp; Optimizer: Adam (lr=1e-4) &nbsp;|&nbsp; Batch Size: 2 &nbsp;|&nbsp; Device: CPU
+      </p>
+    </div>
+
+    <!-- WORK COMPLETED -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon">✅</div>
+        Work Completed This Week
+      </div>
+      <p>The following tasks were completed during this reporting period:</p>
+      <ul style="padding-left:20px; font-size:14px; line-height:2; color:#2d3748;">
+        <li>Upgraded the RepViT backbone from <strong>M0.9 (384-dim)</strong> to <strong>M1.0 (448-dim)</strong> for better feature representation.</li>
+        <li>Updated the Temporal Convolutional Network (TCN) input dimensions accordingly from 384 to 448 channels.</li>
+        <li>Redesigned the classification head to a <strong>binary anomaly scoring head</strong> using Global Average Pooling + MLP + Sigmoid, replacing the old cross-entropy multi-class setup.</li>
+        <li>Integrated <strong>QuantStub and DeQuantStub</strong> into the model for Quantization-Aware Training (QAT) support.</li>
+        <li>Implemented a complete <strong>QAT training pipeline</strong> (<code>qat_train.py</code>) that prepares, trains, and converts the model to INT8 format.</li>
+        <li>Built and tested an <strong>ONNX export script</strong> (<code>export_riscv_onnx.py</code>) targeting the custom RISC-V AI Accelerator with opset version 14.</li>
+        <li>Fixed a loss function mismatch bug (<code>CrossEntropyLoss</code> → <code>BCELoss</code>) that caused an IndexError during training.</li>
+        <li>Completed <strong>10-epoch training</strong> on the Fighting anomaly dataset, achieving <strong>85% validation accuracy</strong>.</li>
+        <li>Pushed the complete codebase to GitHub: <strong>github.com/adithya-0205/RepViT-VAD</strong>.</li>
+        <li>Authored a professional README.md with setup instructions for teammates.</li>
+      </ul>
+    </div>
+
+    <!-- TEAM PLAN -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon">👥</div>
+        Team Structure &amp; Anomaly Assignment
+      </div>
+      <table class="team-table">
+        <tr>
+          <th>Member</th>
+          <th>Anomaly Type</th>
+          <th>Dataset</th>
+          <th>Status</th>
+        </tr>
+        <tr>
+          <td><strong>Narayanan (Me)</strong></td>
+          <td>Fighting</td>
+          <td>Fighting001–051_x264</td>
+          <td><span class="status-done">✅ Completed</span></td>
+        </tr>
+        <tr>
+          <td>Member 2</td>
+          <td>Assault</td>
+          <td>Assault dataset</td>
+          <td><span class="status-pending">⏳ Next Week</span></td>
+        </tr>
+        <tr>
+          <td>Member 3</td>
+          <td>Crowd Anomaly</td>
+          <td>Crowd dataset</td>
+          <td><span class="status-pending">⏳ Next Week</span></td>
+        </tr>
+        <tr>
+          <td>Member 4</td>
+          <td>Other Anomaly</td>
+          <td>TBD</td>
+          <td><span class="status-pending">⏳ Next Week</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- NEXT WEEK PLAN -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon">🗓</div>
+        Plan for Next Week
+      </div>
+
+      <div class="plan-item">
+        <div class="week-num">1</div>
+        <div class="plan-text">
+          <h4>Update Training Script with --anomaly Argument</h4>
+          <p>Modify train.py so each teammate can run: <code>python train.py --anomaly assault</code> without changing any code manually. Each person trains their own binary model.</p>
+        </div>
+      </div>
+
+      <div class="plan-item">
+        <div class="week-num">2</div>
+        <div class="plan-text">
+          <h4>Team Members Train Their Anomaly Models Independently</h4>
+          <p>Each teammate clones the GitHub repo, places their own dataset in <code>extracted_frames/train/&lt;anomaly_name&gt;/</code> and trains their model. No need to share datasets between members.</p>
+        </div>
+      </div>
+
+      <div class="plan-item">
+        <div class="week-num">3</div>
+        <div class="plan-text">
+          <h4>Each Member Pushes Their Trained Model (.pth) to GitHub</h4>
+          <p>After training, each member pushes only their <code>best_model.pth</code> renamed as <code>assault_model.pth</code>, <code>crowd_model.pth</code> etc. to the shared GitHub repo. No raw video data is uploaded.</p>
+        </div>
+      </div>
+
+      <div class="plan-item">
+        <div class="week-num">4</div>
+        <div class="plan-text">
+          <h4>Build Combined Ensemble Predictor (predict_all.py)</h4>
+          <p>Create a final inference script that loads all model weights and runs ensemble detection. Output will show individual anomaly scores: Fighting: 0.92, Assault: 0.11, Crowd: 0.08 → Final Verdict: FIGHTING DETECTED.</p>
+        </div>
+      </div>
+
+      <div class="plan-item">
+        <div class="week-num">5</div>
+        <div class="plan-text">
+          <h4>Final ONNX Export &amp; RISC-V Deployment Validation</h4>
+          <p>Export the final combined model to ONNX for RISC-V AI Accelerator deployment. Validate output shape, anomaly score range, and ONNX graph validity using the ONNX checker and ONNX Runtime.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- GITHUB -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon">🔗</div>
+        GitHub Repository
+      </div>
+      <div class="git-box">
+        🔗 https://github.com/adithya-0205/RepViT-VAD<br/><br/>
+        # Clone and run<br/>
+        git clone https://github.com/adithya-0205/RepViT-VAD.git<br/>
+        cd RepViT-VAD<br/>
+        pip install -r requirements.txt<br/>
+        python train.py
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <span>RepViT-VAD Project — Video Anomaly Detection System</span>
+    <span>Submitted: August 4, 2026 &nbsp;|&nbsp; Narayanan</span>
+  </div>
+
+</div>
+
+<script>
+  // Auto-trigger print dialog for PDF saving
+  window.onload = function() {
+    setTimeout(function() {
+      window.print();
+    }, 800);
+  };
+</script>
+</body>
+</html>
