@@ -29,3 +29,5 @@ trt/
 
 # Large continual-learning replay data
 replay_buffer/
+data/
+dataset/
