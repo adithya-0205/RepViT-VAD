@@ -276,6 +276,7 @@ class VideoDataset(Dataset):
         train=True,
         clip_len=DEFAULT_CLIP_LEN,
         classes=None,
+        class_to_idx=None,
         random_clip=True
     ):
 
@@ -307,7 +308,13 @@ class VideoDataset(Dataset):
 
         self.classes_file = "classes.json"
 
-        if classes is not None:
+        if class_to_idx is not None:
+            self.class_to_idx = dict(class_to_idx)
+            if classes is not None:
+                self.classes = list(classes)
+            else:
+                self.classes = [k for k in sorted(self.class_to_idx, key=lambda x: self.class_to_idx[x])]
+        elif classes is not None:
 
             # Explicit classes supplied by train.py.
             #
