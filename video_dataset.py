@@ -1,237 +1,326 @@
-
 import os
-import json
 import random
-from PIL import Image, UnidentifiedImageError
+from typing import Dict, List, Tuple
 
+import cv2
 import torch
 from torch.utils.data import Dataset
-from torchvision import transforms
 
 
 # ============================================================
 # CONFIGURATION
 # ============================================================
 
-DEFAULT_CLASSES = ["normal", "fighting"]
-
 DEFAULT_CLIP_LEN = 16
 IMAGE_SIZE = 224
 
-NORMALIZE_MEAN = [0.485, 0.456, 0.406]
-NORMALIZE_STD = [0.229, 0.224, 0.225]
+VIDEO_EXTENSIONS = {
+    ".mp4",
+    ".avi",
+    ".mov",
+    ".mkv",
+    ".webm",
+    ".mpeg",
+    ".mpg",
+}
 
-
-# ============================================================
-# COMMON TRANSFORM
-# ============================================================
-
-def create_transform():
-    """
-    Transform used by both VideoDataset and ReplayDataset.
-
-    Output:
-        Tensor shape = (3, 224, 224)
-    """
-
-    return transforms.Compose([
-        transforms.Resize(
-            (IMAGE_SIZE, IMAGE_SIZE),
-            antialias=True
-        ),
-        transforms.ToTensor(),
-        transforms.Normalize(
-            NORMALIZE_MEAN,
-            NORMALIZE_STD
-        )
-    ])
-
-
-# ============================================================
-# FRAME FILE CHECK
-# ============================================================
-
-VALID_EXTENSIONS = {
+IMAGE_EXTENSIONS = {
     ".jpg",
     ".jpeg",
     ".png",
     ".bmp",
-    ".webp"
+    ".webp",
 }
 
 
-def is_image_file(filename):
-    """
-    Returns True only for supported image files.
-    """
-
-    extension = os.path.splitext(filename)[1].lower()
-
-    return extension in VALID_EXTENSIONS
-
-
 # ============================================================
-# GET FRAME LIST
+# HELPERS
 # ============================================================
 
-def get_frame_files(video_folder):
-    """
-    Returns sorted image-frame paths from a frame folder.
+def is_image_file(path: str) -> bool:
+    return (
+        os.path.isfile(path)
+        and os.path.splitext(path)[1].lower()
+        in IMAGE_EXTENSIONS
+    )
 
-    Example:
 
-        dataset/
-        ├── train/
-        │   ├── normal/
-        │   │   ├── video001/
-        │   │   │   ├── 001.jpg
-        │   │   │   ├── 002.jpg
-        │   │   │   └── ...
-    """
+def is_video_file(path: str) -> bool:
+    return (
+        os.path.isfile(path)
+        and os.path.splitext(path)[1].lower()
+        in VIDEO_EXTENSIONS
+    )
 
-    if not os.path.isdir(video_folder):
-        return []
 
-    try:
-        names = os.listdir(video_folder)
-    except OSError:
-        return []
+def sorted_files(directory: str) -> List[str]:
+    files = []
+
+    if not os.path.isdir(directory):
+        return files
+
+    for name in os.listdir(directory):
+        path = os.path.join(directory, name)
+
+        if is_image_file(path):
+            files.append(path)
+
+    return sorted(files)
+
+
+def resize_frame(frame):
+    frame = cv2.resize(
+        frame,
+        (IMAGE_SIZE, IMAGE_SIZE),
+        interpolation=cv2.INTER_LINEAR,
+    )
+
+    frame = cv2.cvtColor(
+        frame,
+        cv2.COLOR_BGR2RGB,
+    )
+
+    tensor = torch.from_numpy(
+        frame.copy()
+    ).float() / 255.0
+
+    tensor = tensor.permute(
+        2, 0, 1
+    )
+
+    return tensor
+
+
+def read_image_frames(
+    folder: str,
+    clip_len: int,
+    random_clip: bool,
+):
+    frame_paths = sorted_files(folder)
+
+    if len(frame_paths) == 0:
+        raise RuntimeError(
+            f"No image frames found in:\n{folder}"
+        )
+
+    total = len(frame_paths)
+
+    # --------------------------------------------------------
+    # Select frames
+    # --------------------------------------------------------
+
+    if total >= clip_len:
+
+        if random_clip:
+            start = random.randint(
+                0,
+                total - clip_len,
+            )
+        else:
+            start = (
+                total - clip_len
+            ) // 2
+
+        selected = frame_paths[
+            start:start + clip_len
+        ]
+
+    else:
+
+        selected = frame_paths[:]
+
+        # Repeat last frame
+        while len(selected) < clip_len:
+            selected.append(
+                selected[-1]
+            )
+
+    # --------------------------------------------------------
+    # Load
+    # --------------------------------------------------------
 
     frames = []
 
-    for name in names:
+    for path in selected:
 
-        path = os.path.join(
-            video_folder,
-            name
+        frame = cv2.imread(path)
+
+        if frame is None:
+            raise RuntimeError(
+                f"Could not read frame:\n{path}"
+            )
+
+        frames.append(
+            resize_frame(frame)
         )
 
-        if (
-            os.path.isfile(path)
-            and is_image_file(name)
-        ):
-            frames.append(path)
-
-    # Natural-ish sorting based on filename.
-    frames.sort()
-
-    return frames
+    return torch.stack(frames)
 
 
-# ============================================================
-# SELECT CLIP
-# ============================================================
-
-def select_clip(
-    frames,
-    clip_len,
-    random_clip=True
+def read_video_frames(
+    video_path: str,
+    clip_len: int,
+    random_clip: bool,
 ):
-    """
-    Select exactly clip_len frames.
+    cap = cv2.VideoCapture(video_path)
 
-    If enough frames exist:
-        random_clip=True  -> random temporal crop
-        random_clip=False -> deterministic first clip
-
-    If fewer frames exist:
-        last frame is repeated.
-    """
-
-    if len(frames) == 0:
+    if not cap.isOpened():
         raise RuntimeError(
-            "Video folder contains no valid image frames."
+            f"Could not open video:\n{video_path}"
+        )
+
+    total_frames = int(
+        cap.get(
+            cv2.CAP_PROP_FRAME_COUNT
+        )
+    )
+
+    if total_frames <= 0:
+        cap.release()
+
+        raise RuntimeError(
+            f"Video contains no frames:\n"
+            f"{video_path}"
         )
 
     # --------------------------------------------------------
-    # Enough frames
+    # Determine frame indices
     # --------------------------------------------------------
 
-    if len(frames) >= clip_len:
+    if total_frames >= clip_len:
 
-        max_start = len(frames) - clip_len
-
-        if random_clip and max_start > 0:
+        if random_clip:
 
             start = random.randint(
                 0,
-                max_start
+                total_frames - clip_len,
             )
 
         else:
 
-            start = 0
+            start = (
+                total_frames - clip_len
+            ) // 2
 
-        return frames[
-            start:start + clip_len
-        ]
-
-    # --------------------------------------------------------
-    # Too few frames
-    # --------------------------------------------------------
-
-    selected = list(frames)
-
-    last_frame = frames[-1]
-
-    while len(selected) < clip_len:
-
-        selected.append(last_frame)
-
-    return selected
-
-
-# ============================================================
-# LOAD CLIP
-# ============================================================
-
-def load_clip(
-    frame_paths,
-    transform
-):
-    """
-    Loads all frames and returns:
-
-        Tensor shape:
-        (T, C, H, W)
-
-    Example:
-
-        (16, 3, 224, 224)
-    """
-
-    images = []
-
-    for frame_path in frame_paths:
-
-        try:
-
-            with Image.open(frame_path) as img:
-
-                img = img.convert("RGB")
-
-                tensor = transform(img)
-
-                images.append(tensor)
-
-        except (
-            OSError,
-            UnidentifiedImageError
-        ) as error:
-
-            raise RuntimeError(
-                f"Could not read frame:\n"
-                f"{frame_path}\n"
-                f"Error: {error}"
+        indices = list(
+            range(
+                start,
+                start + clip_len,
             )
-
-    if not images:
-
-        raise RuntimeError(
-            "No valid frames could be loaded."
         )
 
-    return torch.stack(images, dim=0)
+    else:
+
+        indices = list(
+            range(total_frames)
+        )
+
+        while len(indices) < clip_len:
+            indices.append(
+                indices[-1]
+            )
+
+    # --------------------------------------------------------
+    # Read frames
+    # --------------------------------------------------------
+
+    frames = []
+
+    for index in indices:
+
+        cap.set(
+            cv2.CAP_PROP_POS_FRAMES,
+            index,
+        )
+
+        success, frame = cap.read()
+
+        if not success:
+            cap.release()
+
+            raise RuntimeError(
+                f"Could not read frame "
+                f"{index} from:\n"
+                f"{video_path}"
+            )
+
+        frames.append(
+            resize_frame(frame)
+        )
+
+    cap.release()
+
+    return torch.stack(frames)
+
+
+# ============================================================
+# FIND CLIP SOURCES
+# ============================================================
+
+def find_clip_sources(
+    root: str,
+) -> List[str]:
+
+    sources = []
+
+    if not os.path.isdir(root):
+        return sources
+
+    for item in sorted(
+        os.listdir(root)
+    ):
+
+        path = os.path.join(
+            root,
+            item,
+        )
+
+        # ----------------------------------------------------
+        # A directory containing image frames
+        # ----------------------------------------------------
+
+        if os.path.isdir(path):
+
+            image_files = sorted_files(
+                path
+            )
+
+            if image_files:
+                sources.append(path)
+                continue
+
+            # ------------------------------------------------
+            # Directory containing video files
+            # ------------------------------------------------
+
+            video_files = [
+                os.path.join(
+                    path,
+                    name,
+                )
+                for name in os.listdir(path)
+                if is_video_file(
+                    os.path.join(
+                        path,
+                        name,
+                    )
+                )
+            ]
+
+            sources.extend(
+                sorted(video_files)
+            )
+
+            continue
+
+        # ----------------------------------------------------
+        # Direct video file
+        # ----------------------------------------------------
+
+        if is_video_file(path):
+            sources.append(path)
+
+    return sources
 
 
 # ============================================================
@@ -239,250 +328,94 @@ def load_clip(
 # ============================================================
 
 class VideoDataset(Dataset):
-    """
-    Dataset for video clips stored as frame folders.
-
-    Expected structure:
-
-        dataset/
-        ├── train/
-        │   ├── normal/
-        │   │   ├── video_001/
-        │   │   │   ├── 001.jpg
-        │   │   │   ├── 002.jpg
-        │   │   │   └── ...
-        │   │   └── video_002/
-        │   │
-        │   └── fighting/
-        │       ├── video_001/
-        │       └── ...
-        │
-        └── val/
-            ├── normal/
-            └── fighting/
-
-    Each returned sample:
-
-        clip:
-            (16, 3, 224, 224)
-
-        label:
-            integer class index
-    """
 
     def __init__(
         self,
-        root="dataset",
-        train=True,
-        clip_len=DEFAULT_CLIP_LEN,
+        root: str,
+        train: bool = True,
         classes=None,
         class_to_idx=None,
-        random_clip=True
+        clip_len: int = DEFAULT_CLIP_LEN,
     ):
 
         self.root = root
         self.train = train
         self.clip_len = clip_len
-        self.random_clip = random_clip
 
-        self.transform = create_transform()
-
-        # ----------------------------------------------------
-        # Split
-        # ----------------------------------------------------
-
-        split_folder = (
+        split = (
             "train"
             if train
             else "val"
         )
 
-        self.split_dir = os.path.join(
+        self.split_root = os.path.join(
             root,
-            split_folder
+            split,
         )
 
-        # ----------------------------------------------------
-        # Class mapping
-        # ----------------------------------------------------
-
-        self.classes_file = "classes.json"
-
-        if class_to_idx is not None:
-            self.class_to_idx = dict(class_to_idx)
-            if classes is not None:
-                self.classes = list(classes)
-            else:
-                self.classes = [k for k in sorted(self.class_to_idx, key=lambda x: self.class_to_idx[x])]
-        elif classes is not None:
-
-            # Explicit classes supplied by train.py.
-            #
-            # For your current stage:
-            #
-            # ["normal", "fighting"]
-            #
-            self.classes = list(classes)
-
-            self.class_to_idx = {
-                name: index
-                for index, name
-                in enumerate(self.classes)
-            }
-
-        else:
-
-            # If no classes were explicitly supplied,
-            # read existing mapping.
-
-            self.classes = []
-            self.class_to_idx = {}
-
-            if os.path.exists(
-                self.classes_file
-            ):
-
-                try:
-
-                    with open(
-                        self.classes_file,
-                        "r",
-                        encoding="utf-8"
-                    ) as file:
-
-                        saved = json.load(file)
-
-                    if isinstance(
-                        saved,
-                        dict
-                    ):
-
-                        self.class_to_idx = {
-                            str(k): int(v)
-                            for k, v in saved.items()
-                        }
-
-                        # Sort by class index so that:
-                        #
-                        # 0 -> normal
-                        # 1 -> fighting
-                        # 2 -> assault
-                        #
-                        self.classes = [
-                            name
-                            for name, index
-                            in sorted(
-                                self.class_to_idx.items(),
-                                key=lambda x: x[1]
-                            )
-                        ]
-
-                    elif isinstance(
-                        saved,
-                        list
-                    ):
-
-                        self.classes = list(
-                            saved
-                        )
-
-                        self.class_to_idx = {
-                            name: index
-                            for index, name
-                            in enumerate(
-                                self.classes
-                            )
-                        }
-
-                except (
-                    OSError,
-                    json.JSONDecodeError,
-                    ValueError
-                ):
-
-                    print(
-                        "[Dataset] Warning: "
-                        "Could not read classes.json."
-                    )
-
-            # No mapping found.
-            if not self.classes:
-
-                self.classes = list(
-                    DEFAULT_CLASSES
-                )
-
-                self.class_to_idx = {
-                    name: index
-                    for index, name
-                    in enumerate(
-                        self.classes
-                    )
-                }
-
-        # ----------------------------------------------------
-        # Validate requested classes
-        # ----------------------------------------------------
-
         if not os.path.isdir(
-            self.split_dir
+            self.split_root
         ):
 
             raise FileNotFoundError(
                 f"Dataset split not found:\n"
-                f"{self.split_dir}"
+                f"{self.split_root}"
             )
 
-        disk_classes = sorted(
-            [
-                name
-                for name in os.listdir(
-                    self.split_dir
-                )
-                if os.path.isdir(
-                    os.path.join(
-                        self.split_dir,
-                        name
+        # ----------------------------------------------------
+        # Classes
+        # ----------------------------------------------------
+
+        if classes is None:
+
+            classes = sorted(
+                [
+                    name
+                    for name in os.listdir(
+                        self.split_root
                     )
+                    if os.path.isdir(
+                        os.path.join(
+                            self.split_root,
+                            name,
+                        )
+                    )
+                ]
+            )
+
+        self.classes = list(classes)
+
+        if class_to_idx is None:
+
+            self.class_to_idx = {
+                name: index
+                for index, name
+                in enumerate(
+                    self.classes
                 )
-            ]
-        )
+            }
+
+        else:
+
+            self.class_to_idx = dict(
+                class_to_idx
+            )
 
         # ----------------------------------------------------
-        # Explicit class mode
-        # ----------------------------------------------------
-
-        if classes is not None:
-
-            missing = [
-                cls
-                for cls in self.classes
-                if cls not in disk_classes
-            ]
-
-            if missing:
-
-                raise ValueError(
-                    f"Requested class(es) not found "
-                    f"in {self.split_dir}: "
-                    f"{missing}"
-                )
-
-        # ----------------------------------------------------
-        # Build samples
+        # Samples
         # ----------------------------------------------------
 
         self.samples = []
 
         for class_name in self.classes:
 
-            class_dir = os.path.join(
-                self.split_dir,
-                class_name
+            class_root = os.path.join(
+                self.split_root,
+                class_name,
             )
 
             if not os.path.isdir(
-                class_dir
+                class_root
             ):
                 continue
 
@@ -490,117 +423,79 @@ class VideoDataset(Dataset):
                 class_name
             ]
 
-            try:
+            sources = find_clip_sources(
+                class_root
+            )
 
-                video_names = sorted(
-                    os.listdir(
-                        class_dir
-                    )
-                )
-
-            except OSError:
-
-                continue
-
-            for video_name in video_names:
-
-                video_path = os.path.join(
-                    class_dir,
-                    video_name
-                )
-
-                if not os.path.isdir(
-                    video_path
-                ):
-                    continue
-
-                # Check that the folder actually
-                # contains image frames.
-
-                frame_files = get_frame_files(
-                    video_path
-                )
-
-                if not frame_files:
-
-                    print(
-                        f"[Dataset] Skipping empty "
-                        f"video folder:\n"
-                        f"{video_path}"
-                    )
-
-                    continue
+            for source in sources:
 
                 self.samples.append(
                     (
-                        video_path,
-                        label
+                        source,
+                        label,
                     )
                 )
 
-        # ----------------------------------------------------
-        # Final information
-        # ----------------------------------------------------
+        if len(self.samples) == 0:
 
-        print(
-            f"[VideoDataset] "
-            f"{'TRAIN' if train else 'VAL'}"
+            raise RuntimeError(
+                f"No samples found in:\n"
+                f"{self.split_root}"
+            )
+
+        mode = (
+            "TRAIN"
+            if train
+            else "VAL"
         )
 
         print(
-            f"    Classes : {self.classes}"
+            f"[VideoDataset] {mode}"
         )
 
         print(
-            f"    Samples : {len(self.samples)}"
+            f"Classes : {self.classes}"
         )
 
-    # ========================================================
-    # LENGTH
-    # ========================================================
+        print(
+            f"Samples : {len(self.samples)}"
+        )
 
     def __len__(self):
+        return len(self.samples)
 
-        return len(
-            self.samples
-        )
+    def __getitem__(
+        self,
+        index,
+    ):
 
-    # ========================================================
-    # GET ITEM
-    # ========================================================
-
-    def __getitem__(self, index):
-
-        video_folder, label = (
+        source, label = (
             self.samples[index]
         )
 
-        frames = get_frame_files(
-            video_folder
-        )
+        if os.path.isdir(source):
 
-        if not frames:
-
-            raise RuntimeError(
-                f"No image frames found in:\n"
-                f"{video_folder}"
+            frames = read_image_frames(
+                source,
+                self.clip_len,
+                random_clip=self.train,
             )
 
-        selected_frames = select_clip(
+        else:
+
+            frames = read_video_frames(
+                source,
+                self.clip_len,
+                random_clip=self.train,
+            )
+
+        return (
             frames,
-            self.clip_len,
-            random_clip=(
-                self.random_clip
-                and self.train
-            )
+            torch.tensor(
+                label,
+                dtype=torch.long,
+            ),
         )
-
-        clip = load_clip(
-            selected_frames,
-            self.transform
-        )
-
-        return clip, label
 
 
 # ============================================================
@@ -608,176 +503,190 @@ class VideoDataset(Dataset):
 # ============================================================
 
 class ReplayDataset(Dataset):
-    """
-    Experience Replay dataset.
-
-    Loads previously saved frame-folder clips.
-
-    replay_paths format:
-
-        {
-            "normal": [
-                ".../video001",
-                ".../video002"
-            ],
-
-            "fighting": [
-                ".../video003",
-                ".../video004"
-            ]
-        }
-
-    The class_to_idx mapping comes from the CURRENT
-    training stage.
-
-    Example:
-
-        {
-            "normal": 0,
-            "fighting": 1
-        }
-
-    Later teammate:
-
-        {
-            "normal": 0,
-            "fighting": 1,
-            "assault": 2
-        }
-
-    Existing replay labels therefore remain stable.
-    """
 
     def __init__(
         self,
-        replay_paths,
-        class_to_idx,
-        clip_len=DEFAULT_CLIP_LEN,
-        random_clip=True
+        root: str,
+        class_to_idx: Dict[str, int],
+        classes=None,
+        clip_len: int = DEFAULT_CLIP_LEN,
+        random_clip: bool = True,
     ):
 
-        self.clip_len = clip_len
-
+        self.root = root
         self.class_to_idx = dict(
             class_to_idx
         )
-
+        self.clip_len = clip_len
         self.random_clip = random_clip
 
-        self.transform = create_transform()
+        if classes is None:
+
+            classes = [
+                "normal",
+                "fighting",
+            ]
+
+        self.classes = list(classes)
 
         self.samples = []
 
         # ----------------------------------------------------
-        # Build replay samples
+        # Expected:
+        #
+        # replay_buffer/
+        #     train/
+        #         normal/
+        #         fighting/
+        #
+        # OR
+        #
+        # replay_buffer/
+        #     val/
+        #         normal/
+        #         fighting/
         # ----------------------------------------------------
 
-        for class_name, paths in (
-            replay_paths.items()
-        ):
+        for class_name in self.classes:
 
-            # Ignore unknown classes.
+            class_root = os.path.join(
+                root,
+                class_name,
+            )
+
+            if not os.path.isdir(
+                class_root
+            ):
+
+                print(
+                    f"[ReplayDataset] "
+                    f"Warning: missing:\n"
+                    f"{class_root}"
+                )
+
+                continue
 
             if class_name not in (
                 self.class_to_idx
             ):
-
-                print(
-                    f"[Replay] Ignoring unknown "
-                    f"class: {class_name}"
+                raise KeyError(
+                    f"Class '{class_name}' "
+                    f"not found in class_to_idx."
                 )
-
-                continue
 
             label = self.class_to_idx[
                 class_name
             ]
 
-            if not isinstance(
-                paths,
-                (list, tuple)
-            ):
-                continue
+            sources = find_clip_sources(
+                class_root
+            )
 
-            for path in paths:
-
-                if not os.path.isdir(
-                    path
-                ):
-                    print(
-                        f"[Replay] Missing path: "
-                        f"{path}"
-                    )
-
-                    continue
-
-                frame_files = get_frame_files(
-                    path
-                )
-
-                if not frame_files:
-
-                    print(
-                        f"[Replay] Empty clip: "
-                        f"{path}"
-                    )
-
-                    continue
+            for source in sources:
 
                 self.samples.append(
                     (
-                        path,
-                        label
+                        source,
+                        label,
                     )
                 )
 
+        if len(self.samples) == 0:
+
+            raise RuntimeError(
+                f"No replay clips found in:\n"
+                f"{root}"
+            )
+
         print(
-            f"[ReplayDataset] "
-            f"Loaded {len(self.samples)} replay clips."
+            f"[ReplayDataset] Loaded "
+            f"{len(self.samples)} replay clips "
+            f"from {root}"
         )
 
-    # ========================================================
-    # LENGTH
-    # ========================================================
+        for class_name in self.classes:
+
+            label = self.class_to_idx[
+                class_name
+            ]
+
+            count = sum(
+                1
+                for _, sample_label
+                in self.samples
+                if sample_label == label
+            )
+
+            print(
+                f"    {class_name}: "
+                f"{count}"
+            )
 
     def __len__(self):
+        return len(self.samples)
 
-        return len(
-            self.samples
-        )
+    def __getitem__(
+        self,
+        index,
+    ):
 
-    # ========================================================
-    # GET ITEM
-    # ========================================================
-
-    def __getitem__(self, index):
-
-        video_folder, label = (
+        source, label = (
             self.samples[index]
         )
 
-        frames = get_frame_files(
-            video_folder
-        )
+        if os.path.isdir(source):
 
-        if not frames:
-
-            raise RuntimeError(
-                f"Replay clip contains no "
-                f"valid frames:\n"
-                f"{video_folder}"
+            frames = read_image_frames(
+                source,
+                self.clip_len,
+                random_clip=self.random_clip,
             )
 
-        selected_frames = select_clip(
+        else:
+
+            frames = read_video_frames(
+                source,
+                self.clip_len,
+                random_clip=self.random_clip,
+            )
+
+        return (
             frames,
-            self.clip_len,
-            random_clip=self.random_clip
+            torch.tensor(
+                label,
+                dtype=torch.long,
+            ),
         )
 
-        clip = load_clip(
-            selected_frames,
-            self.transform
-        )
 
-        return clip, label
+# ============================================================
+# TEST
+# ============================================================
 
+if __name__ == "__main__":
+
+    print("=" * 60)
+    print("VIDEO DATASET TEST")
+    print("=" * 60)
+
+    print(
+        "This file provides:"
+    )
+
+    print(
+        "  VideoDataset"
+    )
+
+    print(
+        "  ReplayDataset"
+    )
+
+    print(
+        f"Clip length: "
+        f"{DEFAULT_CLIP_LEN}"
+    )
+
+    print(
+        f"Image size: "
+        f"{IMAGE_SIZE}x{IMAGE_SIZE}"
+    )
