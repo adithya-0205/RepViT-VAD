@@ -2,5 +2,6 @@
   "normal": 0,
   "fighting": 1,
   "vandalism": 2,
-  "assault": 3
+  "assault": 3,
+  "arson": 4
 }

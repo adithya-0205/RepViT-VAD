@@ -1,36 +1,36 @@
-wandb/
-
-coreml/
-
-pretrain/
-
-**/__pycache__/
+# Python / Virtual Environment
+__pycache__/
 *.pyc
-
 venv/
 env/
 .venv/
+.DS_Store
 
-extracted_frames/
-
-# Model checkpoints
-*.pth
-!best_model.pth
-
-*.onnx
-*.onnx.data
-
-*.zip
-
+# Weights & Biases / Framework outputs
+wandb/
+coreml/
+pretrain/
 checkpoints/
 trt/
 
-.DS_Store
+# Model Checkpoints (Ignore all .pth except best_model.pth)
+*.pth
+!best_model.pth
+*.onnx
+*.onnx.data
+*.zip
 
-# Large continual-learning replay data
-replay_buffer/
+# Data & Video directories
+Arson/
+Assault/
 data/
 dataset/
-Assault/
-inspect_out.txt
+extracted_frames/
+replay_buffer/
+test_videos/
 
+# Audit & Scratch helper scripts
+audit_*.py
+sys_check.py
+*.resolved
+inspect_out.txt
