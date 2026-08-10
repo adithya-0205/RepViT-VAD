@@ -1,5 +1,6 @@
 {
   "normal": 0,
   "fighting": 1,
-  "vandalism": 2
+  "vandalism": 2,
+  "assault": 3
 }

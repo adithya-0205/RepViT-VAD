@@ -6,7 +6,7 @@ import shutil
 FRAME_SKIP = 10         # Save every 10th frame for efficiency
 IMG_SIZE = (224, 224)
 
-ASSAULT_SRC = "data/Anomaly-Videos-Part-1/Assault"
+ASSAULT_SRC = "Assault"
 EXTRACTED_DIR = "extracted_frames/train/assault"
 DATASET_TRAIN = "dataset/train/assault"
 DATASET_VAL = "dataset/val/assault"
